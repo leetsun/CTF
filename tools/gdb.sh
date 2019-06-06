@@ -49,7 +49,6 @@ else
 	echo -e "Error!\nPleasse input right number!"
 fi
  
-echo "plese intput the normal gdb command"
 gdb $1 $2 $3 $4 $5 $6 $7 $8 $9
 
 
