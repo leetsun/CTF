@@ -1,0 +1,1 @@
+cmd_/home/bluesky/ctf/pwn/kernel/CISCN2017-babydriver/babydirver/driver/hello.ko := ld -r -m elf_x86_64 -T ./scripts/module-common.lds --build-id  -o /home/bluesky/ctf/pwn/kernel/CISCN2017-babydriver/babydirver/driver/hello.ko /home/bluesky/ctf/pwn/kernel/CISCN2017-babydriver/babydirver/driver/hello.o /home/bluesky/ctf/pwn/kernel/CISCN2017-babydriver/babydirver/driver/hello.mod.o

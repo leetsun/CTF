@@ -1,0 +1,11 @@
+qemu-system-x86_64 \
+-m 256M \
+-initrd rootfs.cpio \
+-kernel bzImage \
+-append 'console=ttyS0 root=/dev/ram oops=panic panic=1' \
+-gdb tcp::1234 \
+-enable-kvm \
+-monitor /dev/null \
+ --nographic  \
+-smp cores=1,threads=1 \
+-cpu kvm64,+smep \

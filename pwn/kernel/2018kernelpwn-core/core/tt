@@ -1,0 +1,5 @@
+ffffffffa309c8e0 T commit_creds
+ffffffffa1478885 t init_sunrpc
+ffffffffa14788e8 T cache_initialize
+ffffffffa1478936 t init_rpcsec_gss
+ffffffffa1478994 t init_kerberos_modul
